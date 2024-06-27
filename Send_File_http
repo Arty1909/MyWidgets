@@ -1,0 +1,20 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:html/parser.dart' as parser;
+import 'package:html/dom.dart' as dom;
+import 'dart:io';
+
+Future<void> main() async {
+  String filePath = 'IMG_8436.JPG';
+  var request = http.MultipartRequest(
+      'POST', Uri.parse('https://your_url/.../.../'));
+
+  request.files.add(await http.MultipartFile.fromPath('filename', filePath));
+
+  var response = await request.send();
+  print(response.statusCode);
+  response.stream.transform(utf8.decoder).listen((value) {
+    print(value);
+  });
+}
