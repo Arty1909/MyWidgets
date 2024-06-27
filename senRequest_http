@@ -20,7 +20,7 @@ Future<String> lil_send_request(Uri url) async {
 }
 
 void main() async {
-  final url = Uri.parse('https://marlene.pw');
+  final url = Uri.parse('Your_URL');
   String pageContent = await lil_send_request(url);
   print('$pageContent');
 }
