@@ -1,0 +1,166 @@
+
+import 'dart:io';
+import 'dart:core';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:open_file/open_file.dart';
+import 'package:csv/csv.dart';
+import 'package:path/path.dart' as path;
+
+void main() => runApp(MyApp());
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: MyHomePage(),
+    );
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  @override
+  _MyHomePageState createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  String _filePath = '';
+  List<MapEntry<String, int>> _wordFrequency = [];
+  int _numberOfWords = 10;
+  final TextEditingController _numberOfWordsController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    _numberOfWordsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['txt'],
+    );
+
+    if (result != null) {
+      File file = File(result.files.single.path!);
+      List<String> words = await _getEnglishWordsFromFile(file);
+      Map<String, int> wordFrequency = _calculateWordFrequency(words);
+
+      setState(() {
+        _filePath = result.files.single.path!;
+        _updateWordFrequency(wordFrequency);
+      });
+
+      await _saveAsCsv(wordFrequency);
+    }
+  }
+
+  Future<List<String>> _getEnglishWordsFromFile(File file) async {
+    String content = await file.readAsString();
+    RegExp regExp = RegExp(r'[a-zA-Z]+');
+    Iterable<RegExpMatch> matches = regExp.allMatches(content);
+
+    List<String> words = matches.map((match) => match.group(0)!).toList();
+    return words;
+  }
+
+  Map<String, int> _calculateWordFrequency(List<String> words) {
+    Map<String, int> wordFrequency = {};
+
+    for (String word in words) {
+      wordFrequency[word] = (wordFrequency[word] ?? 0) + 1;
+    }
+
+    return wordFrequency;
+  }
+
+  void _updateWordFrequency(Map<String, int> wordFrequency) {
+    _wordFrequency = wordFrequency.entries.toList();
+    _wordFrequency.sort((a, b) => b.value.compareTo(a.value));
+  }
+
+  Future<void> _openLocalFile() async {
+    if (_filePath.isNotEmpty) {
+      await OpenFile.open(_filePath);
+    }
+  }
+
+  Future<void> _saveAsCsv(Map<String, int> wordFrequency) async {
+    List<MapEntry<String, int>> sortedWordFrequency = wordFrequency.entries
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    List<List<dynamic>> rows =
+        sortedWordFrequency.map((entry) => [entry.key, entry.value]).toList();
+
+    String csvData = const ListToCsvConverter().convert(rows);
+
+    String csvFileName = path.basenameWithoutExtension(_filePath) + '.csv';
+
+    File csvFile = File(path.join(path.dirname(_filePath), csvFileName));
+    await csvFile.writeAsString(csvData);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('File Picker Demo'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            ElevatedButton(
+              onPressed: _pickFile,
+              child: Text('Выбрать файл'),
+            ),
+            SizedBox(height: 20),
+            TextField(
+              controller: _numberOfWordsController,
+              onChanged: (value) {
+                setState(() {
+                  _numberOfWords = int.tryParse(value) ?? 0;
+                });
+              },
+              decoration: InputDecoration(
+                labelText: 'Количество слов',
+              ),
+            ),
+            SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _numberOfWords < _wordFrequency.length
+                    ? _numberOfWords
+                    : _wordFrequency.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final wordEntry = _wordFrequency[index];
+                  final word = wordEntry.key;
+                  final frequency = wordEntry.value;
+                  return ListTile(
+                    title: Text(
+                      word,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      'Количество: $frequency',
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _openLocalFile,
+              child: Text('Открыть файл'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
